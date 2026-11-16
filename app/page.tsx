@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import type {
   WebWorkerMLCEngine,
   ChatCompletionMessageParam,
@@ -15,7 +16,9 @@ type Message = {
 };
 
 let engine: WebWorkerMLCEngine | null = null;
+
 let enginePromise: Promise<WebWorkerMLCEngine> | null = null;
+
 let aiWorker: Worker | null = null;
 
 async function getAI(
@@ -40,7 +43,9 @@ async function getAI(
           "./worker/web-worker.ts",
           import.meta.url
         ),
-        { type: "module" }
+        {
+          type: "module",
+        }
       );
 
       const ai = new WebWorkerMLCEngine(
@@ -59,10 +64,10 @@ async function getAI(
         }
       );
 
-      onProgress("Loading BINNU AI...");
+      onProgress("Starting BINNU AI...");
 
       await ai.reload(MODEL, {
-        context_window_size: 2048,
+        context_window_size: 1024,
       });
 
       engine = ai;
@@ -83,6 +88,7 @@ async function getAI(
       enginePromise = null;
 
     }
+
   })();
 
   return enginePromise;
@@ -109,24 +115,31 @@ export default function BINNUAI() {
     useState(false);
 
   const history = useRef<Message[]>([]);
+
   const locked = useRef(false);
+
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-
     document.title = "BINNU AI";
-
   }, []);
 
   useEffect(() => {
 
     bottom.current?.scrollIntoView({
-      behavior: "smooth",
+      block: "end",
     });
 
   }, [messages]);
 
   async function loadModel() {
+
+    if (engine) {
+
+      setReady(true);
+
+      return engine;
+    }
 
     setLoading(true);
 
@@ -135,7 +148,8 @@ export default function BINNUAI() {
       const ai = await getAI(setStatus);
 
       setReady(true);
-      setStatus("AI Ready");
+
+      setStatus("● AI Ready");
 
       return ai;
 
@@ -182,23 +196,29 @@ export default function BINNUAI() {
     locked.current = true;
 
     setBusy(true);
+
     setInput("");
 
     setMessages(previous => [
+
       ...previous,
+
       {
         role: "user",
         content: text,
       },
+
       {
         role: "assistant",
         content: "Thinking...",
       },
+
     ]);
 
     function updateReply(answer: string) {
 
       setMessages(previous =>
+
         previous.map((message, index) =>
 
           index === previous.length - 1
@@ -216,24 +236,35 @@ export default function BINNUAI() {
 
     try {
 
+      if (!engine) {
+        updateReply("Loading AI model...");
+      }
+
       const ai = await loadModel();
 
       setStatus("Generating reply...");
 
-      const conversation: ChatCompletionMessageParam[] = [
+      updateReply("Thinking...");
+
+      const conversation:
+        ChatCompletionMessageParam[] = [
 
         {
           role: "system",
 
           content:
-            "You are BINNU AI, a helpful multilingual AI assistant. Respond in the language used by the user. Understand Telugu, Hindi, English and other languages. Give concise, accurate answers.",
+            "You are BINNU AI, a helpful multilingual AI assistant. Always reply in the user's language. Give short, accurate and useful answers. You can understand Telugu, English, Hindi and many other languages.",
         },
 
         ...history.current
-          .slice(-4)
+          .slice(-2)
           .map(message => ({
+
             ...message,
-            content: message.content.slice(0, 400),
+
+            content:
+              message.content.slice(0, 250),
+
           })),
 
         {
@@ -250,9 +281,9 @@ export default function BINNUAI() {
 
           stream: true,
 
-          max_tokens: 192,
+          max_tokens: 96,
 
-          temperature: 0.6,
+          temperature: 0.5,
 
           top_p: 0.9,
 
@@ -271,10 +302,11 @@ export default function BINNUAI() {
 
         answer += token;
 
-        if (answer) {
-          updateReply(answer);
-        }
+        if (token) {
 
+          updateReply(answer);
+
+        }
       }
 
       if (!answer.trim()) {
@@ -299,7 +331,7 @@ export default function BINNUAI() {
 
       );
 
-      setStatus("AI Ready");
+      setStatus("● AI Ready");
 
     } catch (error: any) {
 
@@ -319,13 +351,15 @@ export default function BINNUAI() {
         aiWorker?.terminate();
 
         aiWorker = null;
+
         engine = null;
+
         enginePromise = null;
 
         setReady(false);
 
         setStatus(
-          "GPU error. Reload AI and retry."
+          "GPU error. Try sending again."
         );
 
       }
@@ -346,6 +380,7 @@ export default function BINNUAI() {
     history.current = [];
 
     setMessages([]);
+
     setInput("");
 
   }
@@ -357,6 +392,7 @@ export default function BINNUAI() {
       <style>{`
 
         #binnu-app {
+
           position: fixed;
           inset: 0;
           display: flex;
@@ -365,25 +401,33 @@ export default function BINNUAI() {
           font-family: Arial, sans-serif;
           overflow: hidden;
           z-index: 100;
+
         }
 
         #binnu-app * {
+
           box-sizing: border-box;
+
         }
 
         #binnu-app button {
+
           cursor: pointer;
           font-family: inherit;
           font-weight: 700;
           border: none;
+
         }
 
         #binnu-app button:disabled {
+
           opacity: .45;
           cursor: not-allowed;
+
         }
 
         #binnu-app .sidebar {
+
           width: 250px;
           background: #121720;
           border-right: 1px solid #252d3b;
@@ -391,46 +435,64 @@ export default function BINNUAI() {
           display: flex;
           flex-direction: column;
           flex-shrink: 0;
+
         }
 
         #binnu-app .brand {
+
           font-size: 28px;
           font-weight: 900;
           color: #a6ff72;
           letter-spacing: 2px;
+
         }
 
         #binnu-app .subtitle {
+
           font-size: 11px;
           color: #8995aa;
           margin-top: 10px;
           margin-bottom: 30px;
           letter-spacing: 1px;
+
         }
 
         #binnu-app .primary {
+
           color: #081009;
           background: #a6ff72;
           padding: 14px 20px;
           border-radius: 12px;
           font-size: 14px;
+
+        }
+
+        #binnu-app .primary:hover {
+
+          background: #c0ff9c;
+
         }
 
         #binnu-app .sidebar-info {
+
           margin-top: auto;
           color: #8995aa;
           font-size: 12px;
           line-height: 2;
+
         }
 
         #binnu-app .main {
+
           flex: 1;
           min-width: 0;
           display: flex;
           flex-direction: column;
+
         }
 
         #binnu-app .header {
+
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -438,37 +500,47 @@ export default function BINNUAI() {
           border-bottom: 1px solid #252d3b;
           background: #10151d;
           gap: 12px;
+
         }
 
         #binnu-app .heading {
+
           font-size: 18px;
           color: #a6ff72;
           font-weight: 800;
           letter-spacing: 2px;
           white-space: nowrap;
+
         }
 
         #binnu-app .status {
+
           font-size: 12px;
           color: #a6ff72;
           overflow-wrap: anywhere;
           text-align: right;
           max-width: 65%;
+
         }
 
         #binnu-app .messages {
+
           flex: 1;
           overflow-y: auto;
           padding: 24px;
+
         }
 
         #binnu-app .welcome {
+
           max-width: 650px;
           margin: 50px auto;
           text-align: center;
+
         }
 
         #binnu-app .symbol {
+
           width: 84px;
           height: 84px;
           margin: auto;
@@ -479,29 +551,36 @@ export default function BINNUAI() {
           display: grid;
           place-items: center;
           font-size: 42px;
-          box-shadow:
-            0 0 35px #a6ff7220;
+          box-shadow: 0 0 35px #a6ff7220;
+
         }
 
         #binnu-app h1 {
+
           margin: 25px 0 12px;
           font-size: 32px;
           color: white;
+
         }
 
         #binnu-app p {
+
           color: #8995aa;
           line-height: 1.7;
+
         }
 
         #binnu-app .examples {
+
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 12px;
           margin-top: 30px;
+
         }
 
         #binnu-app .example {
+
           background: #151b25;
           color: #f4f6fa;
           border: 1px solid #283242;
@@ -509,13 +588,17 @@ export default function BINNUAI() {
           padding: 20px;
           border-radius: 14px;
           line-height: 1.6;
+
         }
 
         #binnu-app .example:hover {
+
           border-color: #a6ff72;
+
         }
 
         #binnu-app .bubble {
+
           max-width: 850px;
           margin: 18px auto;
           padding: 18px;
@@ -523,33 +606,43 @@ export default function BINNUAI() {
           white-space: pre-wrap;
           overflow-wrap: anywhere;
           line-height: 1.75;
+
         }
 
         #binnu-app .user {
+
           background: #213423;
           border: 1px solid #35513a;
+
         }
 
         #binnu-app .assistant {
+
           background: #151b25;
           border: 1px solid #283242;
+
         }
 
         #binnu-app .role {
+
           color: #a6ff72;
           font-size: 11px;
           font-weight: 800;
           margin-bottom: 10px;
           letter-spacing: 1px;
+
         }
 
         #binnu-app .composer {
+
           padding: 18px;
           background: #10151d;
           border-top: 1px solid #252d3b;
+
         }
 
         #binnu-app .input-box {
+
           max-width: 850px;
           display: flex;
           margin: auto;
@@ -559,9 +652,11 @@ export default function BINNUAI() {
           padding: 10px;
           gap: 10px;
           align-items: center;
+
         }
 
         #binnu-app textarea {
+
           flex: 1;
           min-width: 0;
           width: 100%;
@@ -572,9 +667,11 @@ export default function BINNUAI() {
           color: white;
           padding: 12px;
           font: inherit;
+
         }
 
         #binnu-app .send {
+
           background: #a6ff72;
           color: #081009;
           width: 46px;
@@ -582,51 +679,70 @@ export default function BINNUAI() {
           border-radius: 12px;
           font-size: 24px;
           flex-shrink: 0;
+
         }
 
         #binnu-app .footer {
+
           color: #8995aa;
           font-size: 11px;
           margin-top: 12px;
           text-align: center;
+
         }
 
         #binnu-app .mobile-new {
+
           display: none;
+
         }
 
         @media(max-width: 700px) {
 
           #binnu-app .sidebar {
+
             display: none;
+
           }
 
           #binnu-app .header {
+
             padding: 14px;
+
           }
 
           #binnu-app .messages {
+
             padding: 14px;
+
           }
 
           #binnu-app .welcome {
+
             margin-top: 25px;
+
           }
 
           #binnu-app h1 {
+
             font-size: 26px;
+
           }
 
           #binnu-app .examples {
+
             grid-template-columns: 1fr;
+
           }
 
           #binnu-app .mobile-new {
+
             display: block;
             background: #252d3b;
             color: white;
             border-radius: 8px;
             padding: 8px;
+
           }
 
         }
@@ -653,7 +769,11 @@ export default function BINNUAI() {
 
         <div className="sidebar-info">
 
-          BINNU AI 4.0
+          BINNU AI 4.1
+
+          <br />
+
+          FAST MODE
 
           <br />
 
@@ -715,7 +835,9 @@ export default function BINNUAI() {
               <button
                 className="primary"
                 onClick={startAI}
-                disabled={loading || busy || ready}
+                disabled={
+                  loading || busy || ready
+                }
               >
 
                 {ready
@@ -732,9 +854,11 @@ export default function BINNUAI() {
                   className="example"
                   disabled={busy}
                   onClick={() =>
+
                     sendMessage(
-                      "Tell me about artificial intelligence."
+                      "Explain artificial intelligence."
                     )
+
                   }
                 >
                   ✦ Learn something new
@@ -744,9 +868,11 @@ export default function BINNUAI() {
                   className="example"
                   disabled={busy}
                   onClick={() =>
+
                     sendMessage(
                       "Write a simple HTML website."
                     )
+
                   }
                 >
                   &lt;/&gt; Coding help
@@ -756,9 +882,11 @@ export default function BINNUAI() {
                   className="example"
                   disabled={busy}
                   onClick={() =>
+
                     sendMessage(
                       "తెలుగులో ఒక చిన్న కథ చెప్పు."
                     )
+
                   }
                 >
                   ✦ Speak in Telugu
@@ -768,9 +896,11 @@ export default function BINNUAI() {
                   className="example"
                   disabled={busy}
                   onClick={() =>
+
                     sendMessage(
                       "हिंदी में विज्ञान के बारे में बताओ।"
                     )
+
                   }
                 >
                   ✦ Speak in Hindi
@@ -817,22 +947,28 @@ export default function BINNUAI() {
 
               value={input}
 
-              maxLength={600}
+              maxLength={400}
 
               rows={2}
 
               placeholder="Ask BINNU AI anything..."
 
               onChange={event =>
+
                 setInput(event.target.value)
+
               }
 
               onKeyDown={event => {
 
                 if (
+
                   event.key === "Enter" &&
+
                   !event.shiftKey &&
+
                   !event.nativeEvent.isComposing
+
                 ) {
 
                   event.preventDefault();
@@ -846,9 +982,15 @@ export default function BINNUAI() {
             />
 
             <button
+
               className="send"
-              disabled={busy || !input.trim()}
+
+              disabled={
+                busy || !input.trim()
+              }
+
               onClick={() => sendMessage()}
+
             >
               ↑
             </button>
@@ -857,7 +999,7 @@ export default function BINNUAI() {
 
           <div className="footer">
 
-            BINNU AI · Private Browser AI
+            BINNU AI 4.1 · Fast Mode
             · Multilingual Assistant
 
           </div>
